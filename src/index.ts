@@ -1,18 +1,22 @@
+// ==========================================
+// CRITICAL: Load environment variables FIRST!
+// ==========================================
+import 'dotenv/config';
+
 import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
-
-// Load environment variables
-dotenv.config();
 
 // Import middlewares
 import { errorHandler, notFoundHandler, requestLogger } from './middlewares';
 
-// Import routes
+// Import routes (setelah dotenv loaded)
 import categoryRoutes from './modules/category/routes';
 import productRoutes from './modules/products/routes';
+
+// // Import database untuk test connection
+// import prisma from './config/database';
 
 // ==========================================
 // App Configuration
@@ -23,20 +27,17 @@ const PORT = process.env.PORT || 3000;
 // ==========================================
 // Security Middlewares
 // ==========================================
-// Helmet for security headers
 app.use(helmet());
 
-// CORS configuration
 app.use(cors({
     origin: process.env.CORS_ORIGIN || '*',
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-// Rate limiting
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
+    windowMs: 15 * 60 * 1000,
+    max: 100,
     message: {
         success: false,
         message: 'Too many requests, please try again later.',
@@ -58,14 +59,26 @@ app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(requestLogger);
 
 // ==========================================
-// Health Check Endpoint
+// Health Check Endpoint (with DB check)
 // ==========================================
-app.get('/health', (_req, res) => {
-    res.status(200).json({
-        success: true,
-        message: 'Server is healthy',
-        timestamp: new Date().toISOString(),
-    });
+app.get('/health', async (_req, res) => {
+    try {
+        
+        res.status(200).json({
+            success: true,
+            message: 'Server is healthy',
+            database: 'connected',
+            timestamp: new Date().toISOString(),
+        });
+    } catch (error) {
+        res.status(503).json({
+            success: false,
+            message: 'Server is unhealthy',
+            database: 'disconnected',
+            error: error instanceof Error ? error.message : 'Unknown error',
+            timestamp: new Date().toISOString(),
+        });
+    }
 });
 
 // ==========================================
@@ -87,6 +100,7 @@ app.use(errorHandler);
 // ==========================================
 const startServer = async () => {
     try {
+        
         app.listen(PORT, () => {
             console.log('='.repeat(50));
             console.log(`🚀 Server running on http://localhost:${PORT}`);
@@ -99,10 +113,16 @@ const startServer = async () => {
             console.log('');
         });
     } catch (error) {
-        console.error('Failed to start server:', error);
+        console.error('❌ Failed to start server:', error);
+        console.error('\n💡 Troubleshooting tips:');
+        console.error('  1. Check if DATABASE_URL is set in .env');
+        console.error('  2. Run: npx prisma generate');
+        console.error('  3. Run: npx prisma db push');
+        console.error('  4. Run: npm run db:seed\n');
         process.exit(1);
     }
 };
+
 
 startServer();
 

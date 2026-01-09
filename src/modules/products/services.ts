@@ -13,46 +13,54 @@ export const productService = {
     /**
      * Get all products with pagination, filtering, and sorting
      */
-    async findAll(query: ProductQuery) {
-        const {
-            page,
-            limit,
-            search,
-            categoryId,
-            isActive,
-            minPrice,
-            maxPrice,
-            sortBy,
-            sortOrder,
-        } = query;
-        const skip = (page - 1) * limit;
+async findAll(query: ProductQuery) {
+    console.log('🔍 Query received:', JSON.stringify(query, null, 2));
+    
+    const {
+        page = 1,
+        limit = 10,
+        search,
+        categoryId,
+        isActive,
+        minPrice,
+        maxPrice,
+        sortBy = 'createdAt',
+        sortOrder = 'desc',
+    } = query;
+    
+    console.log('📊 Parsed params:', { page, limit, sortBy, sortOrder });
+    
+    const skip = (page - 1) * limit;
 
-        // Build where clause
-        const where: Prisma.ProductWhereInput = {
-            ...(search && {
-                OR: [
-                    { name: { contains: search, mode: 'insensitive' as const } },
-                    { description: { contains: search, mode: 'insensitive' as const } },
-                    { sku: { contains: search, mode: 'insensitive' as const } },
-                ],
-            }),
-            ...(categoryId && { categoryId }),
-            ...(isActive !== undefined && { isActive }),
-            ...(minPrice !== undefined || maxPrice !== undefined
-                ? {
-                    price: {
-                        ...(minPrice !== undefined && { gte: minPrice }),
-                        ...(maxPrice !== undefined && { lte: maxPrice }),
-                    },
-                }
-                : {}),
-        };
+    const where: Prisma.ProductWhereInput = {
+        ...(search && {
+            OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                { description: { contains: search, mode: 'insensitive' } },
+                { sku: { contains: search, mode: 'insensitive' } },
+            ],
+        }),
+        ...(categoryId && { categoryId }),
+        ...(isActive !== undefined && { isActive }),
+        ...(minPrice !== undefined || maxPrice !== undefined
+            ? {
+                price: {
+                    ...(minPrice !== undefined && { gte: minPrice }),
+                    ...(maxPrice !== undefined && { lte: maxPrice }),
+                },
+            }
+            : {}),
+    };
 
-        // Build order by clause
-        const orderBy: Prisma.ProductOrderByWithRelationInput = {
-            [sortBy]: sortOrder,
-        };
+    console.log('🎯 Where clause:', JSON.stringify(where, null, 2));
 
+    const orderBy: Prisma.ProductOrderByWithRelationInput = {
+        [sortBy]: sortOrder,
+    };
+    
+    console.log('📈 Order by:', JSON.stringify(orderBy, null, 2));
+
+    try {
         const [products, total] = await Promise.all([
             prisma.product.findMany({
                 where,
@@ -71,6 +79,8 @@ export const productService = {
             prisma.product.count({ where }),
         ]);
 
+        console.log('✅ Query successful. Found:', total, 'products');
+
         return {
             products,
             meta: {
@@ -80,7 +90,11 @@ export const productService = {
                 totalPages: Math.ceil(total / limit),
             },
         };
-    },
+    } catch (error) {
+        console.error('❌ Error in findAll:', error);
+        throw error;
+    }
+},
 
     /**
      * Find a product by ID
